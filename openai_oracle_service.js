@@ -1,21 +1,23 @@
 require('dotenv').config();
 const Web3 = require('web3');
-const axios = require('axios');
+const OpenAI = require('openai');
 
-// Load values from .env file
 const {
     ETHEREUM_NODE_URL,
     CONTRACT_ADDRESS,
     ORACLE_ACCOUNT_ADDRESS,
-    PRIVATE_KEY,
-    OPENAI_API_URL
+    PRIVATE_KEY
 } = process.env;
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // Connect to Ethereum node
 const web3 = new Web3(ETHEREUM_NODE_URL);
 
 // Contract ABI
-const contractABI = [ ];
+const contractABI = [];
 const contract = new web3.eth.Contract(contractABI, CONTRACT_ADDRESS);
 
 // Listen to NewQuestion events
@@ -25,9 +27,13 @@ contract.events.NewQuestion({ fromBlock: 'latest' })
         const userAddress = event.returnValues.user;
         const question = event.returnValues.question;
 
-        // Fetch answer from OPENAI service
-        const openaiResponse = await axios.post(OPENAI_API_URL, { question: question });
-        const answer = openaiResponse.data.answer;
+        // Fetch answer from OPENAI service using the chat model
+        const completion = await openai.chat.completions.create({
+            messages: [{ role: 'user', content: question }],
+            model: 'gpt-3.5-turbo',
+        });
+
+        const answer = completion.choices[0].message.content.trim();
 
         // Prepare the transaction
         const tx = contract.methods.provideAnswer(userAddress, answer).encodeABI();
